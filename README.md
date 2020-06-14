@@ -18,3 +18,7 @@ Windows用户运行Release下`web-quant_v1.0.0.zip`中`bokeh.exe`，即可在自
 - bokeh
 
 数据来源：tushare
+
+![image-20200614154658994](README/image-20200614154658994.png)
+
+![image-20200614154746350](README/image-20200614154746350.png)
