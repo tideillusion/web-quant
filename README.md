@@ -18,6 +18,9 @@ Windows用户在[此处](https://github.com/tideillusion/web-quant/releases/down
 
 数据来源：tushare
 
+共同作者（排名不分先后）：
+孙云飞、李博文、胡娇芬、丁雨晴、沈佳卉、陈潇玥、沈屹凡、孙沛然、叶雨霖
+
 ![image-20200614154658994](README/image-20200614154658994.png)
 
 ![image-20200614154746350](README/image-20200614154746350.png)
