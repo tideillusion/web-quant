@@ -1,11 +1,9 @@
 # web-quant
-## 一个基于bokeh的简易的数据查询、策略回测应用
+## 一个基于Python3的简易的数据查询、策略回测应用
 
-Windows用户运行Release下`web-quant_v1.0.0.zip`中`bokeh.exe`，即可在自动打开的浏览器页面使用。
+Windows用户在[此处](https://github.com/tideillusion/web-quant/releases/download/v1.0.0/web-quant_v1.0.0.zip)下载`web-quant_v1.0.0.zip`，解压后运行`bokeh.exe`即可。软件需要访问网络，请放心同意。
 
-其他用户可以通过`bokeh serve ./`来运行。
-
-依赖：
+其他用户可以通过`bokeh serve ./`来运行。需要安装如下依赖：
 - numpy
 - pandas
 - re
