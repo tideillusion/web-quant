@@ -44,7 +44,14 @@ class Data:
         conn.close()
     
     def table_exsit(self,table):
-        sql = '''SELECT * FROM information_schema.TABLES WHERE table_schema ='quant' and table_name ='%s';'''%(table)
+        sql = '''SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE table_schema ='quant' and table_name ='%s';'''%(table)
+        conn = self.__engine_ts.connect()
+        rs = conn.execute(sql).fetchall()
+        conn.close()
+        return not not rs
+    
+    def pk_exsit(self,table):
+        sql = '''SELECT * FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE table_schema ='quant' and TABLE_NAME ='%s';'''%(table)
         conn = self.__engine_ts.connect()
         rs = conn.execute(sql).fetchall()
         conn.close()
@@ -98,24 +105,31 @@ class Data:
 
     
     def __get_daily(self,code,tp):
-        last = self.read_data(tp,where="ts_code='%s'"%code,order='trade_date',attrs=['distinct trade_date'])
-        new = pd.DataFrame()
-        if not last.empty:
-            new = self.read_data('trade_cal',where="cal_date>'%s'"%last.values[-1][0],order='cal_date',attrs=['distinct cal_date'])
-        if not new.empty:
-            last = self.read_data(tp,where="ts_code='%s'"%code,order='trade_date',attrs=['distinct trade_date']).values[-1][0]
-            new = self.read_data('trade_cal',where="cal_date>'%s'"%last,order='cal_date',attrs=['distinct cal_date']).values[0][0]
-            if tp == 'stock_daily_basic':
-                df = self.__pro.query('daily_basic', ts_code=code, start_date = str(new),
-                               fields='ts_code,trade_date,close,turnover_rate,turnover_rate_f,volume_ratio,pe,pe_ttm,pb,ps,ps_ttm,\
-                               dv_ratio,dv_ttm,total_share,float_share,free_share,total_mv,circ_mv')
+        if self.table_exsit(tp):
+            last = self.read_data(tp,where="ts_code='%s'"%code,order='trade_date',attrs=['distinct trade_date'])
+            new = pd.DataFrame()
+            if not last.empty:
+                new = self.read_data('trade_cal',where="cal_date>'%s'"%last.values[-1][0],order='cal_date',attrs=['distinct cal_date'])
+            if not new.empty:
+                last = self.read_data(tp,where="ts_code='%s'"%code,order='trade_date',attrs=['distinct trade_date']).values[-1][0]
+                new = self.read_data('trade_cal',where="cal_date>'%s'"%last,order='cal_date',attrs=['distinct cal_date']).values[0][0]
             else:
-                df = self.__pro.query(tp, ts_code=code, start_date = str(new))
-            try:
-                df.to_sql('stock_daily_basic', self.__engine_ts, index=False, if_exists='append', chunksize=5000,
-                          dtype={'ts_code':types.NVARCHAR(length=10),'trade_date':types.INTEGER()})
-            except Exception as e:
-                traceback.print_exc()
+                new = 20100101
+        else:
+            new = 20100101
+        if tp == 'stock_daily_basic':
+            df = self.__pro.query('daily_basic', ts_code=code, start_date = str(new),
+                           fields='ts_code,trade_date,close,turnover_rate,turnover_rate_f,volume_ratio,pe,pe_ttm,pb,ps,ps_ttm,\
+                           dv_ratio,dv_ttm,total_share,float_share,free_share,total_mv,circ_mv')
+        else:
+            df = self.__pro.query(tp, ts_code=code, start_date = str(new))
+        try:
+            df.to_sql(tp, self.__engine_ts, index=False, if_exists='append', chunksize=5000,
+                      dtype={'ts_code':types.NVARCHAR(length=10),'trade_date':types.INTEGER()})
+            if not self.pk_exsit(tp):
+                self.__add_pk(tp,'ts_code','trade_date')
+        except Exception as e:
+            traceback.print_exc()
         time.sleep(0.1)
     
     def __get_member(self,code):
@@ -141,13 +155,20 @@ class Data:
                   dtype={'ts_code':types.NVARCHAR(length=20)})
         
     def __get_fina_indicator(self,code):
-        last = self.read_data('fina_indicator',where="ts_code='%s'"%code,order='end_date',attrs=['distinct end_date'])
-        new = pd.DataFrame()
-        if not last.empty:
-            new = self.read_data('trade_cal',where="cal_date>'%s'"%last.values[-1][0],order='cal_date',attrs=['distinct cal_date'])
-        if not new.empty:
-            last = self.read_data('fina_indicator',where="ts_code='%s'"%code,order='end_date',attrs=['distinct end_date']).values[-1][0]
-            new = self.read_data('trade_cal',where="cal_date>'%s'"%last,order='cal_date',attrs=['distinct cal_date']).values[0][0]
+        if self.table_exsit('fina_indicator'):
+            s = 'INSERT IGNORE INTO fina_indicator'
+            last = self.read_data('fina_indicator',where="ts_code='%s'"%code,order='end_date',attrs=['distinct end_date'])
+            new = pd.DataFrame()
+            if not last.empty:
+                new = self.read_data('trade_cal',where="cal_date>'%s'"%last.values[-1][0],order='cal_date',attrs=['distinct cal_date'])
+            if not new.empty:
+                last = self.read_data('fina_indicator',where="ts_code='%s'"%code,order='end_date',attrs=['distinct end_date']).values[-1][0]
+                new = self.read_data('trade_cal',where="cal_date>'%s'"%last,order='cal_date',attrs=['distinct cal_date']).values[0][0]
+            else:
+                new = 20100101
+        else:
+            new = 20100101
+            s = 'CREATE TABLE fina_indicator AS'
         df = self.__pro.query('fina_indicator',ts_code = code,start_date = str(new),update_flag=1,
                       fields='ts_code,ann_date,end_date,eps,dt_eps,total_revenue_ps,revenue_ps,capital_rese_ps,\
                       surplus_rese_ps,undist_profit_ps,extra_item,profit_dedt,gross_margin,current_ratio,quick_ratio,\
@@ -175,13 +196,17 @@ class Data:
         time.sleep(0.5)
         try:
             df.to_sql('fina_indicator2', self.__engine_ts, index=False, if_exists='replace', chunksize=5000,
-                      dtype={'ts_code':types.NVARCHAR(length=25),'trade_date':types.INTEGER()})
+                      dtype={'ts_code':types.NVARCHAR(length=25),'end_date':types.INTEGER()})
 
-            sql = '''INSERT IGNORE INTO `quant`.`fina_indicator` 
-                SELECT * FROM fina_indicator2;'''
+            sql = '''%s \
+                SELECT * FROM fina_indicator2;'''% s
             conn = self.__engine_ts.connect()
             conn.execute(sql)
             conn.close()
+            if not self.pk_exsit(tp):
+                try:
+                    self.__add_pk('fina_indicator','ts_code','end_date')
+                except: pass     
         except: pass
      
                 
@@ -271,6 +296,4 @@ class Data:
         codes['ts_code'].apply(self.__get_daily,tp='index_daily')
         
 
-
-    
 print('LAST UPDATE: ',Data().last)
