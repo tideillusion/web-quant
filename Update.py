@@ -10,14 +10,15 @@ from multiprocessing.dummy import Pool as ThreadPool
 
 class Data:
     def __init__(self):
-        self.__engine_ts = create_engine('mysql://root:MySQL@193.112.251.160@127.0.0.1:3306/quant?charset=utf8&use_unicode=1',
+        self.__engine_ts = create_engine('mysql://user:pass@127.0.0.1:3306/quant?charset=utf8&use_unicode=1',
                          pool_size=20, max_overflow=100)
-        self.__pro = ts.pro_api('Your token') 
+        self.__pro = ts.pro_api('TOKEN') 
         if not database_exists(self.__engine_ts.url):
             create_database(self.__engine_ts.url)
         print('DataBase:%s'% database_exists(self.__engine_ts.url))
-        self.last = self.read_data('trade_cal',where='',order='cal_date',attrs=['distinct cal_date']).values[-1][0]
         self.__get_new()
+        self.last = self.read_data('trade_cal',where='',order='cal_date',attrs=['distinct cal_date']).values[-1][0]
+        
 
     def read_data(self,table,**cmd):
         where, order, attr = '', '', '*'
@@ -165,9 +166,9 @@ class Data:
                 last = self.read_data('fina_indicator',where="ts_code='%s'"%code,order='end_date',attrs=['distinct end_date']).values[-1][0]
                 new = self.read_data('trade_cal',where="cal_date>'%s'"%last,order='cal_date',attrs=['distinct cal_date']).values[0][0]
             else:
-                new = 20100101
+                new = 20091231
         else:
-            new = 20100101
+            new = 20091231
             s = 'CREATE TABLE fina_indicator AS'
         df = self.__pro.query('fina_indicator',ts_code = code,start_date = str(new),update_flag=1,
                       fields='ts_code,ann_date,end_date,eps,dt_eps,total_revenue_ps,revenue_ps,capital_rese_ps,\
@@ -240,11 +241,11 @@ class Data:
                   dtype={'ts_code':types.NVARCHAR(length=20)})
         self.__add_pk('fund_basic','ts_code')
         
+        codes = self.read_data('index_classify',where='',order='',attrs=['index_code'])       
         if self.table_exsit('index_member'):
             self.__drop_tb('index_member')
         codes['index_code'].apply(self.__get_member)
         self.__add_pk('index_member','index_code','con_code')
-        codes = self.read_data('index_classify',where='',order='',attrs=['index_code'])
         
         markets = pd.Series(['MSCI','CSI','SSE','SZSE','CICC','SW','OTH'])
         if self.table_exsit('index_basic'):
@@ -261,11 +262,10 @@ class Data:
             self.__drop_tb('opt_basic')
         exchanges.apply(self.__get_opt)
         self.__add_pk('opt_basic','ts_code')
+        print('Processing stock_daily_basic')
         
         codes = self.read_data('stock_basic',where='',order='',attrs=['ts_code'])
-        
-        codes['ts_code'].apply(self.__get_fina_indicator)
-        self.__drop_tb('fina_indicator2')
+
         codes['ts_code'].apply(self.__get_daily,tp='stock_daily_basic')
         
         if self.table_exsit('stock_daily'):
@@ -276,6 +276,7 @@ class Data:
         pool.close()
         pool.join()
         self.__add_pk('stock_daily','ts_code','trade_date') 
+        print('Processing MACD')
         
         if self.table_exsit('MACD'):
             self.__drop_tb('MACD')
@@ -294,6 +295,12 @@ class Data:
         codes['ts_code'].apply(self.__get_daily,tp='opt_daily')
         codes = self.read_data('index_basic',where='',order='',attrs=['ts_code'])
         codes['ts_code'].apply(self.__get_daily,tp='index_daily')
+
+        codes = self.read_data('stock_basic',where='',order='',attrs=['ts_code'])
+        print('Processing fina_indicator')
+        
+        codes['ts_code'].apply(self.__get_fina_indicator)
+        self.__drop_tb('fina_indicator2')
         
 
 print('LAST UPDATE: ',Data().last)
